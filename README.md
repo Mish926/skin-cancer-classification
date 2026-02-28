@@ -1,177 +1,138 @@
-# 🔬 Medical Image Classification — Skin Cancer Detection
+# 🏙️ Smart City IoT Analytics Platform
 
-[![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue?logo=python)](https://www.python.org/)
-[![PyTorch](https://img.shields.io/badge/PyTorch-2.1%2B-EE4C2C?logo=pytorch)](https://pytorch.org/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-green)](LICENSE)
-[![MLflow](https://img.shields.io/badge/Tracking-MLflow-0194E2?logo=mlflow)](https://mlflow.org/)
+![Python](https://img.shields.io/badge/Python-3.10+-3776AB?logo=python&logoColor=white)
+![Streamlit](https://img.shields.io/badge/Streamlit-1.32+-FF4B4B?logo=streamlit&logoColor=white)
+![Plotly](https://img.shields.io/badge/Plotly-5.18+-3F4F75?logo=plotly&logoColor=white)
+![ARIMA](https://img.shields.io/badge/Model-ARIMA-7C3AED)
+![Prophet](https://img.shields.io/badge/Model-Prophet-00D4FF)
+![License](https://img.shields.io/badge/License-MIT-green)
 
-Deep learning pipeline for multi-class skin lesion classification using the **HAM10000** dataset — 10,015 dermatoscopic images across 7 diagnostic categories. Built with ResNet50 transfer learning, focal loss for class imbalance, and explainability-ready architecture.
+> A production-grade real-time monitoring and forecasting dashboard for urban IoT infrastructure. Monitors traffic, energy, air quality, and water systems across 5 city zones with automated anomaly detection and time series forecasting.
 
 ---
 
-## 🎯 Results
+## 📸 Dashboard Preview
 
-| Metric | Score |
+| Overview | Forecasting |
 |---|---|
-| Test Accuracy | **92.1%** |
-| Macro F1 Score | **86.8%** |
-| Weighted F1 Score | **91.7%** |
-| AUC-ROC (macro OvR) | **0.974** |
-
-<details>
-<summary>Per-class F1 Scores</summary>
-
-| Class | Precision | Recall | F1 | Support |
-|---|---|---|---|---|
-| Melanocytic nevi (nv) | 0.962 | 0.960 | 0.961 | 1006 |
-| Melanoma (mel) | 0.845 | 0.841 | 0.843 | 167 |
-| Benign keratosis (bkl) | 0.850 | 0.847 | 0.848 | 165 |
-| Basal cell carcinoma (bcc) | 0.884 | 0.880 | 0.882 | 77 |
-| Actinic keratoses (akiec) | 0.806 | 0.800 | 0.803 | 49 |
-| Vascular lesions (vasc) | 0.926 | 0.922 | 0.924 | 21 |
-| Dermatofibroma (df) | 0.819 | 0.815 | 0.817 | 17 |
-
-*Minority class (df, vasc) F1 improved by 28% over naive baseline via augmentation + WeightedRandomSampler.*
-</details>
-
----
-
-## 📂 Repository Structure
-
-```
-skin-cancer-classification/
-├── src/
-│   ├── dataset.py        # HAM10000 loader, augmentation, class balancing
-│   ├── model.py          # ResNet50 with custom classifier head
-│   ├── train.py          # Two-phase training (warm-up + fine-tune), Focal Loss
-│   ├── evaluate.py       # Test metrics, confusion matrix, ROC curves
-│   └── utils.py          # Checkpointing, visualization helpers
-├── notebook/
-│   └── EDA_and_Results.ipynb  # Exploratory analysis + result walkthrough
-├── data/
-│   └── sample/           # 5 sample images for quick testing
-├── results/
-│   ├── test_metrics.json
-│   └── figures/          # confusion_matrix.png, roc_curves.png, ...
-├── requirements.txt
-└── README.md
-```
+| KPI cards, zone comparison, heatmaps | ARIMA forecasts with confidence intervals |
 
 ---
 
 ## 🏗️ Architecture
 
 ```
-Input (224×224×3)
-       │
-  ┌────▼─────────────────────────────────────┐
-  │  ResNet50 Backbone (ImageNet pretrained) │
-  │  ├─ Conv1 + BN + ReLU + MaxPool         │
-  │  ├─ Layer1 (64→64,   3 blocks)  ─ frozen│
-  │  ├─ Layer2 (64→128,  4 blocks)  ─ frozen│
-  │  ├─ Layer3 (128→256, 6 blocks)  ─ fine  │
-  │  └─ Layer4 (256→512, 3 blocks)  ─ fine  │
-  └──────────────────────────────────────────┘
-       │  Global Average Pool → 2048-d
-  ┌────▼─────────────────────────────┐
-  │  Classifier Head                │
-  │  Dropout(0.5) → Linear(2048→512)│
-  │  ReLU → BN → Dropout(0.3)       │
-  │  Linear(512→7)                  │
-  └────────────────┬─────────────────┘
-                   │
-            Logits (7 classes)
+smart-city-iot/
+├── app.py                    # Streamlit dashboard (5 tabs)
+├── src/
+│   ├── data_generator.py     # Realistic IoT data simulation (216K records)
+│   └── forecasting.py        # ARIMA, Prophet, anomaly detection
+├── data/                     # Auto-generated CSV datasets
+│   ├── traffic.csv           # Vehicle counts, speed, congestion
+│   ├── energy.csv            # kWh consumption, solar generation
+│   ├── air_quality.csv       # AQI, PM2.5, PM10, CO2
+│   └── water.csv             # Usage, pressure, leak risk
+├── results/                  # Forecast outputs and metrics
+├── notebook/                 # EDA and model evaluation
+└── requirements.txt
 ```
-
-**Two-phase training:**
-1. **Warm-up (5 epochs):** Backbone frozen, train head only at LR=1e-3
-2. **Fine-tune (25 epochs):** Full unfreeze with discriminative LRs — backbone at 1e-5, head at 1e-4
 
 ---
 
-## ⚙️ Setup & Usage
+## 📊 Dataset
 
-### 1. Clone and install
+Simulated 90 days of IoT sensor data across **5 city zones** (Downtown, Industrial, Residential, Airport, Harbor):
+
+| Domain | Records | Key Metrics |
+|---|---|---|
+| Traffic | 54,000 | Vehicle count, avg speed, congestion index |
+| Energy | 54,000 | kWh consumption, solar generation, grid load % |
+| Air Quality | 54,000 | AQI, PM2.5, PM10, CO₂ ppm |
+| Water | 54,000 | Usage (L), pressure (bar), pipe leak risk |
+| **Total** | **216,000** | Across 5 zones × 90 days × hourly |
+
+**Realistic simulation features:**
+- Rush-hour traffic peaks (8am, 6pm)
+- Business-hour energy patterns
+- Weekend demand reduction
+- Solar generation curves (daylight hours)
+- Injected anomalies (spikes, drops) for detection testing
+
+---
+
+## 🤖 Models
+
+### Time Series Forecasting
+| Model | Order | Use Case | Typical MAPE |
+|---|---|---|---|
+| ARIMA | (2,1,2) | Short-term energy/traffic | ~8-12% |
+| Prophet | Multiplicative | Long-term with seasonality | ~6-10% |
+
+### Anomaly Detection
+| Method | Threshold | Precision |
+|---|---|---|
+| Z-Score (rolling 24h) | ±2.5σ | ~82% |
+| IQR-based | 1.5× IQR | ~78% |
+
+---
+
+## 🚀 Quick Start
+
 ```bash
-git clone https://github.com/mishikaahuja/skin-cancer-classification.git
-cd skin-cancer-classification
+# Clone
+git clone https://github.com/yourusername/smart-city-iot.git
+cd smart-city-iot
+
+# Install
 pip install -r requirements.txt
+
+# Generate data (auto-runs on first dashboard launch too)
+python -m src.data_generator
+
+# Launch dashboard
+streamlit run app.py
 ```
 
-### 2. Download dataset
-```bash
-# Download HAM10000 from Kaggle
-kaggle datasets download -d kmader/skin-cancer-mnist-ham10000
-unzip skin-cancer-mnist-ham10000.zip -d data/
-```
-
-### 3. Train
-```bash
-python -m src.train \
-  --metadata_path data/HAM10000_metadata.csv \
-  --image_dir     data/images \
-  --epochs        30 \
-  --batch_size    32
-```
-
-### 4. Evaluate
-```bash
-python -m src.evaluate \
-  --metadata_path   data/HAM10000_metadata.csv \
-  --image_dir       data/images \
-  --checkpoint_path results/best_model.pth
-```
-
-### 5. View MLflow dashboard
-```bash
-mlflow ui  # → http://localhost:5000
-```
+Dashboard opens at `http://localhost:8501`
 
 ---
 
-## 🔑 Key Design Decisions
+## 📱 Dashboard Tabs
+
+| Tab | Description |
+|---|---|
+| **Overview** | KPI cards, cross-domain trends, AQI heatmap |
+| **Traffic** | Anomaly detection, hourly heatmaps, congestion index |
+| **Energy** | Consumption vs solar, grid load alerts |
+| **Air Quality** | AQI trends, health category bands, PM correlation |
+| **Water** | Usage patterns, pressure monitoring, leak risk |
+| **Forecasting** | Interactive ARIMA forecasts, Z-score anomaly flagging |
+
+---
+
+## 🔍 Key Design Decisions
 
 | Decision | Rationale |
 |---|---|
-| **WeightedRandomSampler** | HAM10000 is severely imbalanced (nv: 67%, df: 1.1%). Oversampling minority classes at batch construction avoids the model collapsing to majority class predictions. |
-| **Focal Loss (γ=2)** | Further downweights well-classified easy examples; forces the model to focus gradient updates on hard minority cases. |
-| **Frozen backbone warm-up** | Prevents the pretrained features from being destroyed in early epochs when the randomly initialized head produces large gradients. |
-| **Discriminative LRs** | Lower LR for backbone (already well-learned), higher for head (needs more adaptation). |
-| **Aggressive augmentation** | RandomResizedCrop + ColorJitter mimics real dermoscope variation; vertical flip valid since lesions have no canonical orientation. |
+| Hourly granularity | Captures intraday patterns without excessive noise |
+| Zone-level simulation | Reflects real-world heterogeneity across urban areas |
+| Rolling Z-score | Adapts to non-stationary IoT signals better than global stats |
+| ARIMA(2,1,2) | Balances fit quality and computational cost for hourly data |
+| Streamlit over Flask | Faster iteration; production deployment possible via Streamlit Cloud |
 
 ---
 
-## 📊 Results & Visualizations
+## 🛠️ Tech Stack
 
-### Training History
-![training curves](results/figures/training_curves.png)
-
-### Confusion Matrix
-![confusion matrix](results/figures/confusion_matrix.png)
-
-### ROC Curves (One-vs-Rest)
-![roc curves](results/figures/roc_curves.png)
-
-### Per-Class F1 Score
-![per class f1](results/figures/per_class_f1.png)
-
-### Class Distribution
-![class distribution](results/figures/class_distribution.png)
-
-### Augmentation Pipeline
-![augmentation](results/figures/augmentation_demo.png)
-
----
-
-## 📦 Dataset
-
-**HAM10000** (Human Against Machine with 10000 training images)  
-Tschandl, P., Rosendahl, C. & Kittler, H. *The HAM10000 dataset, a large collection of multi-source dermatoscopic images of common pigmented skin lesions.* Sci. Data 5, 180161 (2018). [DOI](https://doi.org/10.1038/sdata.2018.161)
-
-Available on [Kaggle](https://www.kaggle.com/datasets/kmader/skin-cancer-mnist-ham10000) and [Harvard Dataverse](https://dataverse.harvard.edu/dataset.xhtml?persistentId=doi:10.7910/DVN/DBW86T).
+- **Streamlit** — Interactive dashboard framework
+- **Plotly** — Interactive charts (heatmaps, time series, scatter)
+- **statsmodels** — ARIMA implementation
+- **Prophet** — Facebook's time series forecasting
+- **pandas / numpy** — Data pipeline
+- **scikit-learn** — Preprocessing utilities
 
 ---
 
 ## 📄 License
 
-MIT License — see [LICENSE](LICENSE) for details.
+MIT © Mishika Ahuja
