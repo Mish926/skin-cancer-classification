@@ -31,7 +31,7 @@ The model is wrapped in a FastAPI service with a web dashboard. Upload a dermosc
 ![Dashboard — Melanocytic nevi prediction](api/screenshots/melanocytic_nevi.png)
 ![Dashboard — Actinic keratoses with Grad-CAM](api/screenshots/actinic_keratoses.png)
 ![Dashboard — Dermatofibroma prediction](api/screenshots/dermatofibroma.png)
-![Dashboard — Melanocytic nevi high confidence](api/screenshots/melanocytic_nevi_2.png)
+![Dashboard — Melanoma with Grad-CAM](api/screenshots/melanoma.png)
 
 ---
 
