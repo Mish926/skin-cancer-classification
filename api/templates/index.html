@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SkinSight — AI Dermatology Assistant</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500;600&display=swap');
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  :root {
+    --bg: #0a0f1e; --surface: #111827; --card: #1a2235; --border: #2a3548;
+    --accent: #38bdf8; --accent2: #818cf8; --text: #e2e8f0; --muted: #64748b;
+    --low: #22c55e; --medium: #f59e0b; --high: #ef4444;
+  }
+  body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+  header { padding: 24px 48px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 16px; background: var(--surface); }
+  .logo { width: 40px; height: 40px; background: linear-gradient(135deg, var(--accent), var(--accent2)); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 20px; }
+  header h1 { font-family: 'DM Serif Display', serif; font-size: 24px; background: linear-gradient(90deg, var(--accent), var(--accent2)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+  header p { color: var(--muted); font-size: 13px; margin-top: 2px; }
+  .badge { margin-left: auto; background: rgba(56,189,248,0.1); border: 1px solid rgba(56,189,248,0.3); color: var(--accent); padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 500; }
+  main { max-width: 1200px; margin: 0 auto; padding: 48px 24px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 28px; }
+  .card h2 { font-family: 'DM Serif Display', serif; font-size: 18px; margin-bottom: 20px; }
+  .upload-zone { border: 2px dashed var(--border); border-radius: 12px; padding: 48px 24px; text-align: center; cursor: pointer; transition: all 0.3s ease; position: relative; }
+  .upload-zone:hover, .upload-zone.drag-over { border-color: var(--accent); background: rgba(56,189,248,0.05); }
+  .upload-zone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+  .upload-icon { font-size: 48px; margin-bottom: 12px; }
+  .upload-zone p { color: var(--muted); font-size: 14px; }
+  .upload-zone span { color: var(--accent); font-weight: 500; }
+  .preview-img { width: 100%; border-radius: 10px; object-fit: cover; max-height: 280px; display: none; }
+  .btn { width: 100%; padding: 14px; background: linear-gradient(135deg, var(--accent), var(--accent2)); border: none; border-radius: 10px; color: white; font-family: 'DM Sans', sans-serif; font-size: 15px; font-weight: 600; cursor: pointer; margin-top: 16px; transition: opacity 0.2s; }
+  .btn:hover { opacity: 0.9; }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-reset { width: 100%; padding: 12px; background: var(--border); border: none; border-radius: 10px; color: var(--text); font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 500; cursor: pointer; margin-top: 10px; display: none; transition: opacity 0.2s; }
+  .btn-reset:hover { opacity: 0.8; }
+  .spinner { display: none; text-align: center; padding: 20px; color: var(--muted); }
+  .spinner.active { display: block; }
+  .results { display: none; }
+  .results.active { display: block; }
+  .diagnosis-banner { border-radius: 12px; padding: 20px 24px; margin-bottom: 20px; display: flex; align-items: center; gap: 16px; }
+  .risk-LOW  { background: rgba(34,197,94,0.1);  border: 1px solid rgba(34,197,94,0.3); }
+  .risk-MEDIUM { background: rgba(245,158,11,0.1); border: 1px solid rgba(245,158,11,0.3); }
+  .risk-HIGH { background: rgba(239,68,68,0.1);  border: 1px solid rgba(239,68,68,0.3); }
+  .risk-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+  .risk-dot-LOW    { background: var(--low); box-shadow: 0 0 8px var(--low); }
+  .risk-dot-MEDIUM { background: var(--medium); box-shadow: 0 0 8px var(--medium); }
+  .risk-dot-HIGH   { background: var(--high); box-shadow: 0 0 8px var(--high); animation: pulse 1.5s infinite; }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+  .diagnosis-text h3 { font-size: 18px; font-weight: 600; }
+  .diagnosis-text p  { font-size: 13px; color: var(--muted); margin-top: 4px; }
+  .confidence-bar { background: var(--border); border-radius: 6px; height: 8px; margin: 16px 0 8px; overflow: hidden; }
+  .confidence-fill { height: 100%; border-radius: 6px; background: linear-gradient(90deg, var(--accent), var(--accent2)); transition: width 1s ease; }
+  .confidence-label { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); }
+  .top3 { margin-top: 20px; }
+  .top3 h4 { font-size: 13px; color: var(--muted); margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.05em; }
+  .top3-item { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; font-size: 13px; }
+  .top3-item .name { flex: 1; }
+  .top3-item .pct  { color: var(--muted); width: 44px; text-align: right; }
+  .top3-bar { flex: 2; height: 4px; background: var(--border); border-radius: 4px; overflow: hidden; }
+  .top3-fill { height: 100%; background: var(--accent2); border-radius: 4px; }
+  .heatmap-section { margin-top: 20px; }
+  .heatmap-section h4 { font-size: 13px; color: var(--muted); margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.05em; }
+  .heatmap-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .heatmap-grid img { width: 100%; border-radius: 8px; border: 1px solid var(--border); }
+  .heatmap-grid p { font-size: 11px; color: var(--muted); text-align: center; margin-top: 4px; }
+  .disclaimer { margin-top: 32px; padding: 16px 20px; background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.2); border-radius: 10px; font-size: 12px; color: var(--muted); line-height: 1.6; }
+  .model-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 20px; }
+  .stat { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px; text-align: center; }
+  .stat .val { font-size: 22px; font-weight: 600; color: var(--accent); }
+  .stat .lbl { font-size: 11px; color: var(--muted); margin-top: 4px; }
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">🔬</div>
+  <div>
+    <h1>SkinSight</h1>
+    <p>AI-Powered Dermatology Assistant</p>
+  </div>
+  <div class="badge">ResNet50 · HAM10000 · AUC 0.911</div>
+</header>
+<main>
+  <div class="grid">
+    <div>
+      <div class="card">
+        <h2>Upload Skin Image</h2>
+        <div class="upload-zone" id="uploadZone">
+          <input type="file" id="fileInput" accept="image/*">
+          <div class="upload-icon">🖼️</div>
+          <p>Drag and drop a dermoscopic image or <span>browse files</span></p>
+          <p style="margin-top:8px; font-size:12px;">Supports JPG, PNG, TIFF</p>
+        </div>
+        <img class="preview-img" id="previewImg" alt="Preview">
+        <button class="btn" id="analyzeBtn" disabled>Analyze Image</button>
+        <button class="btn-reset" id="resetBtn">Upload Another Image</button>
+      </div>
+      <div class="card" style="margin-top: 24px;">
+        <h2>Model Performance</h2>
+        <div class="model-stats">
+          <div class="stat"><div class="val">0.911</div><div class="lbl">Macro AUC-ROC</div></div>
+          <div class="stat"><div class="val">7</div><div class="lbl">Lesion Classes</div></div>
+          <div class="stat"><div class="val">10K+</div><div class="lbl">Training Images</div></div>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Analysis Results</h2>
+      <div class="spinner" id="spinner">Analyzing image and generating Grad-CAM heatmap...</div>
+      <div class="results" id="results">
+        <div class="diagnosis-banner" id="diagnosisBanner">
+          <div class="risk-dot" id="riskDot"></div>
+          <div class="diagnosis-text">
+            <h3 id="predClass"></h3>
+            <p id="recommendation"></p>
+          </div>
+        </div>
+        <div class="confidence-label">
+          <span>Confidence</span>
+          <span id="confPct"></span>
+        </div>
+        <div class="confidence-bar">
+          <div class="confidence-fill" id="confFill" style="width:0%"></div>
+        </div>
+        <div class="top3">
+          <h4>Top 3 Predictions</h4>
+          <div id="top3List"></div>
+        </div>
+        <div class="heatmap-section">
+          <h4>Grad-CAM Explainability</h4>
+          <div class="heatmap-grid">
+            <div><img id="origImg" alt="Original"><p>Original Image</p></div>
+            <div><img id="heatmapImg" alt="Grad-CAM"><p>Model Focus Area</p></div>
+          </div>
+        </div>
+      </div>
+      <div id="placeholder" style="text-align:center; padding: 60px 20px; color: var(--muted);">
+        <div style="font-size:48px; margin-bottom:12px;">🩺</div>
+        <p>Upload a skin lesion image to begin analysis</p>
+      </div>
+    </div>
+  </div>
+  <div class="disclaimer">
+    Medical Disclaimer: SkinSight is an AI research tool built on the HAM10000 dataset for educational and research purposes only. It is not a substitute for professional medical advice. Always consult a qualified dermatologist for medical decisions.
+  </div>
+</main>
+<script>
+  const fileInput = document.getElementById('fileInput');
+  const previewImg = document.getElementById('previewImg');
+  const uploadZone = document.getElementById('uploadZone');
+  const analyzeBtn = document.getElementById('analyzeBtn');
+  const resetBtn = document.getElementById('resetBtn');
+  const spinner = document.getElementById('spinner');
+  const results = document.getElementById('results');
+  const placeholder = document.getElementById('placeholder');
+  let selectedFile = null;
+
+  function resetUI() {
+    selectedFile = null;
+    fileInput.value = '';
+    previewImg.style.display = 'none';
+    previewImg.src = '';
+    uploadZone.style.display = 'block';
+    analyzeBtn.disabled = true;
+    resetBtn.style.display = 'none';
+    results.classList.remove('active');
+    spinner.classList.remove('active');
+    placeholder.style.display = 'block';
+    placeholder.innerHTML = '<div style="font-size:48px; margin-bottom:12px;">🩺</div><p>Upload a skin lesion image to begin analysis</p>';
+    document.getElementById('origImg').src = '';
+    document.getElementById('heatmapImg').src = '';
+  }
+
+  function showPreview(file) {
+    selectedFile = file;
+    previewImg.src = URL.createObjectURL(file);
+    previewImg.style.display = 'block';
+    uploadZone.style.display = 'none';
+    analyzeBtn.disabled = false;
+    resetBtn.style.display = 'none';
+  }
+
+  fileInput.addEventListener('change', e => {
+    if (e.target.files[0]) showPreview(e.target.files[0]);
+  });
+
+  uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('drag-over'); });
+  uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag-over'));
+  uploadZone.addEventListener('drop', e => {
+    e.preventDefault();
+    uploadZone.classList.remove('drag-over');
+    if (e.dataTransfer.files[0]) showPreview(e.dataTransfer.files[0]);
+  });
+
+  resetBtn.addEventListener('click', resetUI);
+
+  analyzeBtn.addEventListener('click', async () => {
+    if (!selectedFile) return;
+    spinner.classList.add('active');
+    results.classList.remove('active');
+    placeholder.style.display = 'none';
+    analyzeBtn.disabled = true;
+    resetBtn.style.display = 'none';
+
+    const formData = new FormData();
+    formData.append('image', selectedFile);
+
+    try {
+      const res = await fetch('/predict', { method: 'POST', body: formData });
+      const data = await res.json();
+
+      document.getElementById('predClass').textContent = data.prediction;
+      document.getElementById('recommendation').textContent = data.recommendation;
+      document.getElementById('confPct').textContent = data.confidence + '%';
+
+      const fill = document.getElementById('confFill');
+      fill.style.width = '0%';
+      setTimeout(() => fill.style.width = data.confidence + '%', 100);
+
+      document.getElementById('diagnosisBanner').className = 'diagnosis-banner risk-' + data.risk_level;
+      document.getElementById('riskDot').className = 'risk-dot risk-dot-' + data.risk_level;
+
+      document.getElementById('top3List').innerHTML = data.top_3.map(item =>
+        '<div class="top3-item"><span class="name">' + item.class + '</span><div class="top3-bar"><div class="top3-fill" style="width:' + item.confidence + '%"></div></div><span class="pct">' + item.confidence + '%</span></div>'
+      ).join('');
+
+      document.getElementById('origImg').src = 'data:image/png;base64,' + data.original_image;
+      document.getElementById('heatmapImg').src = 'data:image/png;base64,' + data.gradcam_heatmap;
+
+      spinner.classList.remove('active');
+      results.classList.add('active');
+      analyzeBtn.disabled = false;
+      resetBtn.style.display = 'block';
+
+    } catch (err) {
+      spinner.classList.remove('active');
+      placeholder.style.display = 'block';
+      placeholder.innerHTML = '<div style="font-size:48px">❌</div><p style="color:var(--high)">Error: ' + err.message + '</p>';
+      analyzeBtn.disabled = false;
+    }
+  });
+</script>
+</body>
+</html>

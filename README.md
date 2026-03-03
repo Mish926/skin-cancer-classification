@@ -2,19 +2,36 @@
 
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org)
 [![PyTorch](https://img.shields.io/badge/pytorch-2.2%2B-red)](https://pytorch.org)
+[![FastAPI](https://img.shields.io/badge/fastapi-0.135%2B-009688)](https://fastapi.tiangolo.com)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-Multi-class skin lesion classification using ResNet50 transfer learning on the HAM10000 dataset. The pipeline is designed to handle severe class imbalance across 7 diagnostic categories and outputs clinically interpretable evaluation metrics.
+Multi-class skin lesion classification using ResNet50 transfer learning on the HAM10000 dataset, served through a FastAPI inference endpoint with Grad-CAM explainability and a clinical dashboard.
+
+---
 
 ## Table of Contents
 
+- [Demo](#demo)
 - [Results](#results)
 - [Dataset](#dataset)
 - [Architecture](#architecture)
+- [Explainability](#explainability)
 - [Installation](#installation)
 - [Usage](#usage)
+- [API Reference](#api-reference)
 - [Design Decisions](#design-decisions)
 - [References](#references)
+
+---
+
+## Demo
+
+The model is wrapped in a FastAPI service with a web dashboard. Upload a dermoscopic image and receive a diagnosis, confidence score, top-3 class probabilities, and a Grad-CAM heatmap showing which regions of the image influenced the prediction.
+
+![Dashboard — Melanocytic nevi prediction](api/screenshots/melanocytic_nevi.png)
+![Dashboard — Actinic keratoses with Grad-CAM](api/screenshots/actinic_keratoses.png)
+![Dashboard — Dermatofibroma prediction](api/screenshots/dermatofibroma.png)
+![Dashboard — Melanocytic nevi high confidence](api/screenshots/melanocytic_nevi_2.png)
 
 ---
 
@@ -29,7 +46,7 @@ Evaluated on a held-out test set of 1,121 images (stratified 70/15/15 split).
 | Weighted F1         | 0.579  |
 | Macro AUC-ROC (OvR) | 0.911  |
 
-> Accuracy is suppressed by the 67% majority class (melanocytic nevi). Macro AUC-ROC is the primary metric — it measures discrimination ability uniformly across all 7 classes regardless of support.
+Accuracy is suppressed by the 67% majority class (melanocytic nevi). Macro AUC-ROC is the primary metric — it measures class discrimination uniformly across all 7 classes regardless of class support.
 
 **Per-class performance:**
 
@@ -43,7 +60,7 @@ Evaluated on a held-out test set of 1,121 images (stratified 70/15/15 split).
 | Vascular lesions     | 0.359     | 1.000  | 0.528 | 0.996 | 14      |
 | Dermatofibroma       | 0.055     | 0.636  | 0.101 | 0.910 | 11      |
 
-**Training history**
+**Training curves**
 
 ![Training Curves](results/figures/training_curves.png)
 
@@ -51,7 +68,7 @@ Evaluated on a held-out test set of 1,121 images (stratified 70/15/15 split).
 
 ![Confusion Matrix](results/figures/confusion_matrix.png)
 
-**ROC curves — one vs. rest**
+**ROC curves (one-vs-rest)**
 
 ![ROC Curves](results/figures/roc_curves.png)
 
@@ -63,7 +80,7 @@ Evaluated on a held-out test set of 1,121 images (stratified 70/15/15 split).
 
 ## Dataset
 
-HAM10000 — 10,015 dermoscopic images across 7 classes collected from two sites (Vienna and Queensland). Available on [Kaggle](https://www.kaggle.com/datasets/kmader/skin-cancer-mnist-ham10000) and [Harvard Dataverse](https://dataverse.harvard.edu/dataset.xhtml?persistentId=doi:10.7910/DVN/DBW86T).
+HAM10000 — 10,015 dermoscopic images across 7 diagnostic categories, collected from two clinical sites (Vienna and Queensland). Available on [Kaggle](https://www.kaggle.com/datasets/kmader/skin-cancer-mnist-ham10000) and [Harvard Dataverse](https://dataverse.harvard.edu/dataset.xhtml?persistentId=doi:10.7910/DVN/DBW86T).
 
 | Class                | Abbreviation | Train count | Share  |
 |----------------------|--------------|-------------|--------|
@@ -86,15 +103,15 @@ Input (224 x 224 x 3)
        |
 ResNet50 Backbone
   conv1 + bn + relu + maxpool
-  layer1  (64 -> 64,   3 blocks)   [frozen during warm-up]
-  layer2  (64 -> 128,  4 blocks)   [frozen during warm-up]
-  layer3  (128 -> 256, 6 blocks)
-  layer4  (256 -> 512, 3 blocks)
+  layer1  (3 blocks)    [frozen during warm-up]
+  layer2  (4 blocks)    [frozen during warm-up]
+  layer3  (6 blocks)
+  layer4  (3 blocks)
   global average pool -> 2048-d
        |
 Classifier Head
   Dropout(0.5)
-  Linear(2048 -> 512) + ReLU + BatchNorm
+  Linear(2048 -> 512) + ReLU + BatchNorm1d
   Dropout(0.3)
   Linear(512 -> 7)
 ```
@@ -103,8 +120,14 @@ Classifier Head
 
 | Phase       | Epochs | Backbone | LR (backbone) | LR (head) |
 |-------------|--------|----------|---------------|-----------|
-| Warm-up     | 1-5    | Frozen   | —             | 1e-3      |
-| Fine-tuning | 6-30   | Unfrozen | 1e-5          | 1e-4      |
+| Warm-up     | 1–5    | Frozen   | —             | 1e-3      |
+| Fine-tuning | 6–30   | Unfrozen | 1e-5          | 1e-4      |
+
+---
+
+## Explainability
+
+Predictions are accompanied by Grad-CAM (Gradient-weighted Class Activation Mapping) heatmaps. Gradients are backpropagated from the predicted class score to the final convolutional layer (`layer4[-1].conv3`), weighted by global average pooling, and overlaid on the input image. This highlights the spatial regions that contributed most to the classification decision, providing a basis for clinical review beyond the raw confidence score.
 
 ---
 
@@ -114,6 +137,7 @@ Classifier Head
 git clone https://github.com/Mish926/skin-cancer-classification.git
 cd skin-cancer-classification
 pip install -r requirements.txt
+pip install fastapi uvicorn opencv-python-headless python-multipart
 ```
 
 **Dataset setup:**
@@ -153,11 +177,58 @@ python -m src.evaluate \
   --checkpoint_path results/best_model.pth
 ```
 
-**MLflow dashboard:**
+**Run inference API:**
 
 ```bash
-mlflow ui   # http://localhost:5000
+python api/app.py
 ```
+
+Open `http://localhost:5000` to access the dashboard.
+
+**MLflow experiment tracking:**
+
+```bash
+mlflow ui
+```
+
+Open `http://localhost:5000` (or specify `--port`) to view training runs, metrics, and saved model artifacts.
+
+---
+
+## API Reference
+
+**POST /predict**
+
+Accepts a dermoscopic image and returns a structured prediction with Grad-CAM.
+
+Request: `multipart/form-data` with field `image` (JPG, PNG, or TIFF).
+
+Response:
+
+```json
+{
+  "prediction": "Melanocytic nevi",
+  "confidence": 99.84,
+  "risk_level": "LOW",
+  "recommendation": "Benign mole. Monitor for changes over time.",
+  "top_3": [
+    {"class": "Melanocytic nevi", "confidence": 99.84},
+    {"class": "Melanoma",         "confidence": 0.16},
+    {"class": "Benign keratosis", "confidence": 0.0}
+  ],
+  "gradcam_heatmap": "<base64-encoded PNG>",
+  "original_image":  "<base64-encoded PNG>",
+  "model_info": {
+    "architecture": "ResNet50",
+    "dataset": "HAM10000",
+    "macro_auc": 0.911
+  }
+}
+```
+
+**GET /health** — returns model status and configuration.
+
+**GET /classes** — returns the list of 7 diagnostic classes.
 
 ---
 
@@ -165,15 +236,21 @@ mlflow ui   # http://localhost:5000
 
 ```
 skin-cancer-classification/
+├── api/
+│   ├── app.py               # FastAPI inference server with Grad-CAM
+│   ├── templates/
+│   │   └── index.html       # Clinical dashboard
+│   └── screenshots/         # Dashboard demo images
 ├── src/
-│   ├── dataset.py       # Data loading, augmentation, weighted sampling
-│   ├── model.py         # ResNet50 with custom head
-│   ├── train.py         # Training loop, focal loss, MLflow logging
-│   ├── evaluate.py      # Test metrics, confusion matrix, ROC curves
-│   └── utils.py         # Checkpointing, visualization
+│   ├── dataset.py           # Data loading, augmentation, weighted sampling
+│   ├── model.py             # ResNet50 with custom classifier head
+│   ├── train.py             # Training loop, focal loss, MLflow logging
+│   ├── evaluate.py          # Test metrics, confusion matrix, ROC curves
+│   └── utils.py             # Checkpointing, visualization helpers
 ├── notebook/
 │   └── EDA_and_Results.ipynb
 ├── results/
+│   ├── best_model.pth
 │   ├── test_metrics.json
 │   └── figures/
 ├── requirements.txt
@@ -184,20 +261,23 @@ skin-cancer-classification/
 
 ## Design Decisions
 
-**WeightedRandomSampler over class-weighted loss alone**
-The dataset is heavily skewed (nv: 67%, df: 1.1%). Oversampling minority classes at batch construction ensures each batch contains balanced representation, which is more effective than post-hoc loss weighting for extreme imbalance.
+**WeightedRandomSampler over class-weighted loss alone.**
+The dataset is heavily skewed — melanocytic nevi account for 67% of samples, dermatofibroma for 1.1%. Oversampling minority classes at batch construction level ensures balanced gradient updates across all classes. Class-weighted loss alone applies a correction after sampling, which is less effective under this degree of imbalance.
 
-**Focal Loss (gamma=2)**
-Standard cross-entropy treats all samples equally. Focal loss downweights easy, confidently classified examples and redirects gradient updates toward hard minority cases — important when the majority class is learned quickly.
+**Focal Loss (gamma=2).**
+Standard cross-entropy distributes gradient updates uniformly across all samples. Focal loss downweights well-classified examples by a factor of (1 - p)^gamma, concentrating training signal on hard, misclassified cases. This is particularly effective when majority class examples are learned early and dominate subsequent gradient steps.
 
-**Frozen backbone warm-up**
-Initializing the classifier head randomly means early gradients are large and unstable. Freezing the backbone for the first 5 epochs prevents these gradients from corrupting the pretrained ImageNet features before the head has stabilized.
+**Frozen backbone during warm-up.**
+The classifier head is randomly initialized, so early gradient magnitudes are large and unstable. Freezing the backbone for the first five epochs prevents these gradients from corrupting the pretrained ImageNet representations before the head converges to a reasonable initialization.
 
-**Discriminative learning rates**
-The backbone layers already encode general visual features and require only fine adjustment (LR: 1e-5). The head is trained from scratch and needs a larger learning rate (LR: 1e-4) to converge in the available epochs.
+**Discriminative learning rates.**
+The backbone encodes general visual features transferable from ImageNet and requires only fine adjustment (LR: 1e-5). The classifier head is trained from scratch and requires a higher rate (LR: 1e-4) to converge within the training budget. Applying the same LR to both either undertrades the head or overrides the backbone.
 
-**Augmentation strategy**
-`RandomResizedCrop` and `ColorJitter` simulate dermoscope variation across devices and lighting conditions. Horizontal and vertical flips are both valid — skin lesions have no canonical orientation.
+**Augmentation strategy.**
+`RandomResizedCrop` and `ColorJitter` simulate variation across dermoscopy devices and lighting conditions. Horizontal and vertical flips are valid augmentations — lesions have no canonical orientation and flipping does not alter diagnostic class.
+
+**Macro AUC-ROC as primary metric.**
+Accuracy on this dataset is dominated by the majority class. Macro AUC-ROC evaluates each class equally under one-vs-rest scoring, providing a class-balanced view of model discrimination that is more meaningful for clinical evaluation.
 
 ---
 
@@ -208,6 +288,8 @@ Tschandl, P., Rosendahl, C. & Kittler, H. (2018). The HAM10000 dataset, a large 
 He, K., Zhang, X., Ren, S., & Sun, J. (2016). Deep residual learning for image recognition. *CVPR 2016*.
 
 Lin, T. Y., Goyal, P., Girshick, R., He, K., & Dollar, P. (2017). Focal loss for dense object detection. *ICCV 2017*.
+
+Selvaraju, R. R., et al. (2017). Grad-CAM: Visual explanations from deep networks via gradient-based localization. *ICCV 2017*.
 
 ---
 
